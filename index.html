@@ -3,96 +3,56 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>AI Noise Cancellation</title>
-    <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@latest"></script>
-    <style>
-        body { font-family: Arial, sans-serif; text-align: center; margin: 50px auto; }
-        button { font-size: 16px; padding: 10px 20px; margin: 10px; cursor: pointer; }
-        .status { margin-top: 20px; font-size: 18px; color: green; }
-    </style>
+    <title>Destructive Interference Demo</title>
 </head>
 <body>
-    <h1>AI-Powered Noise Cancellation</h1>
-    <p>Click Start to remove background noise in real time.</p>
-    <button id="startButton">Start Noise Cancellation</button>
-    <button id="stopButton" disabled>Stop Noise Cancellation</button>
-    <div id="status" class="status">Status: Idle</div>
+    <h1>Phase Cancellation Test</h1>
+    <p>Click Start to attempt noise cancellation using phase inversion.</p>
+    <button id="startButton">Start</button>
+    <button id="stopButton" disabled>Stop</button>
+    <p id="status">Status: Idle</p>
 
     <script>
-        let audioContext, micStream, scriptProcessor, model;
+        let audioContext;
+        let micStream;
+        let sourceNode, invertedGainNode;
 
-        // Load TensorFlow.js noise suppression model
-        async function loadModel() {
+        async function startPhaseCancellation() {
             try {
-                document.getElementById("status").innerText = "Loading AI model...";
-                model = await tf.loadGraphModel("path/to/your/noise-suppression-model/model.json");
-                document.getElementById("status").innerText = "Model loaded. Ready to start.";
-            } catch (error) {
-                console.error("Error loading model:", error);
-                document.getElementById("status").innerText = "Error loading model.";
-            }
-        }
-
-        async function startNoiseCancellation() {
-            try {
-                if (!model) await loadModel();
-
-                // Request microphone access
+                document.getElementById('status').innerText = "Requesting microphone access...";
                 micStream = await navigator.mediaDevices.getUserMedia({ audio: true });
-                audioContext = new AudioContext();
+
+                audioContext = new (window.AudioContext || window.webkitAudioContext)();
                 const source = audioContext.createMediaStreamSource(micStream);
 
-                // Create audio processor node
-                scriptProcessor = audioContext.createScriptProcessor(4096, 1, 1);
-                source.connect(scriptProcessor);
-                scriptProcessor.connect(audioContext.destination);
+                // Create a gain node with inverted phase (-1 gain)
+                invertedGainNode = audioContext.createGain();
+                invertedGainNode.gain.value = -1; // Invert the phase
 
-                scriptProcessor.onaudioprocess = async (event) => {
-                    const inputBuffer = event.inputBuffer.getChannelData(0);
+                // Connect the nodes: Mic -> Inverted Gain -> Output
+                source.connect(invertedGainNode);
+                invertedGainNode.connect(audioContext.destination);
 
-                    // Convert audio buffer to TensorFlow.js tensor
-                    const inputTensor = tf.tensor(inputBuffer, [1, inputBuffer.length]);
-                    const outputTensor = model.predict(inputTensor); // Noise suppression prediction
-
-                    // Get processed audio and write to output
-                    const outputBuffer = event.outputBuffer.getChannelData(0);
-                    const cleanAudio = outputTensor.dataSync();
-                    for (let i = 0; i < cleanAudio.length; i++) {
-                        outputBuffer[i] = cleanAudio[i];
-                    }
-
-                    // Dispose tensors
-                    inputTensor.dispose();
-                    outputTensor.dispose();
-                };
-
-                // Update UI
-                document.getElementById("status").innerText = "Noise Cancellation Active";
-                document.getElementById("startButton").disabled = true;
-                document.getElementById("stopButton").disabled = false;
+                document.getElementById('status').innerText = "Status: Attempting Phase Cancellation";
+                document.getElementById('startButton').disabled = true;
+                document.getElementById('stopButton').disabled = false;
             } catch (error) {
-                console.error("Error starting noise cancellation:", error);
-                document.getElementById("status").innerText = "Error: Unable to start.";
+                console.error("Error accessing microphone:", error);
+                document.getElementById('status').innerText = "Error: Unable to access microphone.";
             }
         }
 
-        function stopNoiseCancellation() {
-            if (scriptProcessor) scriptProcessor.disconnect();
-            if (audioContext) audioContext.close();
+        function stopPhaseCancellation() {
             if (micStream) micStream.getTracks().forEach(track => track.stop());
+            if (audioContext) audioContext.close();
 
-            // Update UI
-            document.getElementById("status").innerText = "Status: Stopped";
-            document.getElementById("startButton").disabled = false;
-            document.getElementById("stopButton").disabled = true;
+            document.getElementById('status').innerText = "Status: Stopped";
+            document.getElementById('startButton').disabled = false;
+            document.getElementById('stopButton').disabled = true;
         }
 
-        // Event listeners
-        document.getElementById("startButton").addEventListener("click", startNoiseCancellation);
-        document.getElementById("stopButton").addEventListener("click", stopNoiseCancellation);
-
-        // Load the AI model on page load
-        loadModel();
+        document.getElementById('startButton').addEventListener('click', startPhaseCancellation);
+        document.getElementById('stopButton').addEventListener('click', stopPhaseCancellation);
     </script>
 </body>
 </html>
