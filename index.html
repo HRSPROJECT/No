@@ -3,18 +3,19 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Real-Time Noise Cancellation</title>
-    <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@latest"></script>
+    <title>Noise Cancellation Demo</title>
     <style>
+        
         body {
             font-family: Arial, sans-serif;
             text-align: center;
-            margin-top: 50px;
+            margin: 50px auto;
+            max-width: 600px;
         }
         button {
+            font-size: 16px;
             padding: 10px 20px;
             margin: 10px;
-            font-size: 16px;
             cursor: pointer;
         }
         .status {
@@ -25,69 +26,71 @@
     </style>
 </head>
 <body>
-    <h1>AI-Powered Noise Cancellation</h1>
-    <p>Click the button to start or stop real-time noise cancellation.</p>
-
+    122333
+    <h1>Real-Time Noise Cancellation</h1>
+    <p>Click the button below to start or stop noise cancellation.</p>
     <button id="startButton">Start Noise Cancellation</button>
     <button id="stopButton" disabled>Stop Noise Cancellation</button>
-    <div class="status" id="status">Status: Idle</div>
+    <div id="status" class="status">Status: Idle</div>
 
     <script>
-        let audioContext, micStream, processor, model;
+        let audioContext;
+        let micStream;
+        let scriptProcessor;
 
-        async function loadModel() {
-            // Load a pre-trained TensorFlow.js noise suppression model
-            const modelURL = "https://path/to/your/tfjs/model.json";
-            model = await tf.loadGraphModel(modelURL);
-            console.log("Model loaded successfully.");
-        }
-
+        // Request microphone permission and start processing
         async function startNoiseCancellation() {
-            // Load the model
-            if (!model) await loadModel();
+            try {
+                document.getElementById("status").innerText = "Status: Requesting microphone access...";
+                
+                // Request microphone access
+                micStream = await navigator.mediaDevices.getUserMedia({ audio: true });
+                
+                // Create audio context
+                audioContext = new (window.AudioContext || window.webkitAudioContext)();
+                const source = audioContext.createMediaStreamSource(micStream);
+                
+                // Create a ScriptProcessorNode for processing audio data
+                scriptProcessor = audioContext.createScriptProcessor(4096, 1, 1);
 
-            // Request access to the microphone
-            micStream = await navigator.mediaDevices.getUserMedia({ audio: true });
-            audioContext = new AudioContext();
-            const source = audioContext.createMediaStreamSource(micStream);
+                source.connect(scriptProcessor);
+                scriptProcessor.connect(audioContext.destination);
 
-            // Create a ScriptProcessorNode for audio processing
-            processor = audioContext.createScriptProcessor(4096, 1, 1);
-            source.connect(processor);
-            processor.connect(audioContext.destination);
+                scriptProcessor.onaudioprocess = (event) => {
+                    // Access input audio data
+                    const inputBuffer = event.inputBuffer.getChannelData(0);
+                    const outputBuffer = event.outputBuffer.getChannelData(0);
 
-            // Real-time noise cancellation
-            processor.onaudioprocess = async (event) => {
-                const inputBuffer = event.inputBuffer.getChannelData(0);
+                    // Simple noise cancellation: Zero out input audio (demo only)
+                    for (let i = 0; i < inputBuffer.length; i++) {
+                        outputBuffer[i] = inputBuffer[i] * 0.1; // Reduce volume (simulate suppression)
+                    }
+                };
 
-                // Convert audio to TensorFlow.js tensor
-                const tensor = tf.tensor(inputBuffer);
-                const denoisedTensor = model.predict(tensor.reshape([1, tensor.size]));
-
-                // Get cleaned audio data
-                const cleanedAudio = await denoisedTensor.data();
-
-                // Output cleaned audio
-                const outputBuffer = event.outputBuffer.getChannelData(0);
-                for (let i = 0; i < cleanedAudio.length; i++) {
-                    outputBuffer[i] = cleanedAudio[i];
-                }
-
-                // Dispose tensors to avoid memory leaks
-                tensor.dispose();
-                denoisedTensor.dispose();
-            };
-
-            // Update UI
-            document.getElementById("status").innerText = "Status: Noise Cancellation Active";
-            document.getElementById("startButton").disabled = true;
-            document.getElementById("stopButton").disabled = false;
+                // Update UI
+                document.getElementById("status").innerText = "Status: Noise Cancellation Active";
+                document.getElementById("startButton").disabled = true;
+                document.getElementById("stopButton").disabled = false;
+            } catch (error) {
+                console.error("Error accessing microphone:", error);
+                document.getElementById("status").innerText = "Error: Unable to access microphone.";
+            }
         }
 
+        // Stop audio processing and release resources
         function stopNoiseCancellation() {
-            if (processor) processor.disconnect();
-            if (audioContext) audioContext.close();
-            if (micStream) micStream.getTracks().forEach(track => track.stop());
+            if (scriptProcessor) {
+                scriptProcessor.disconnect();
+                scriptProcessor = null;
+            }
+            if (audioContext) {
+                audioContext.close();
+                audioContext = null;
+            }
+            if (micStream) {
+                micStream.getTracks().forEach(track => track.stop());
+                micStream = null;
+            }
 
             // Update UI
             document.getElementById("status").innerText = "Status: Stopped";
@@ -95,7 +98,7 @@
             document.getElementById("stopButton").disabled = true;
         }
 
-        // Event listeners
+        // Button event listeners
         document.getElementById("startButton").addEventListener("click", startNoiseCancellation);
         document.getElementById("stopButton").addEventListener("click", stopNoiseCancellation);
     </script>
