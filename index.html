@@ -3,56 +3,71 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Destructive Interference Demo</title>
+    <title>Phase Inversion Noise Cancellation</title>
+    <style>
+        body { font-family: Arial, sans-serif; text-align: center; margin: 50px; }
+        button { font-size: 16px; padding: 10px 20px; margin: 10px; cursor: pointer; }
+        .status { margin-top: 20px; font-size: 18px; color: green; }
+    </style>
 </head>
 <body>
-    <h1>Phase Cancellation Test</h1>
-    <p>Click Start to attempt noise cancellation using phase inversion.</p>
-    <button id="startButton">Start</button>
-    <button id="stopButton" disabled>Stop</button>
-    <p id="status">Status: Idle</p>
+    <h1>Phase Inversion Noise Cancellation</h1>
+    <p>Click "Start" to test phase-inverted audio from your microphone.</p>
+    <button id="startButton">Start Noise Cancellation</button>
+    <button id="stopButton" disabled>Stop Noise Cancellation</button>
+    <div id="status" class="status">Status: Idle</div>
 
     <script>
         let audioContext;
-        let micStream;
-        let sourceNode, invertedGainNode;
+        let microphoneStream;
+        let invertedGainNode;
 
         async function startPhaseCancellation() {
             try {
-                document.getElementById('status').innerText = "Requesting microphone access...";
-                micStream = await navigator.mediaDevices.getUserMedia({ audio: true });
-
+                document.getElementById("status").innerText = "Requesting microphone access...";
+                
+                // Request access to the microphone
+                const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+                
+                // Initialize the audio context
                 audioContext = new (window.AudioContext || window.webkitAudioContext)();
-                const source = audioContext.createMediaStreamSource(micStream);
-
-                // Create a gain node with inverted phase (-1 gain)
+                const sourceNode = audioContext.createMediaStreamSource(stream);
+                
+                // Create a gain node to invert the phase (-1 gain)
                 invertedGainNode = audioContext.createGain();
-                invertedGainNode.gain.value = -1; // Invert the phase
+                invertedGainNode.gain.value = -1; // Invert the signal
 
-                // Connect the nodes: Mic -> Inverted Gain -> Output
-                source.connect(invertedGainNode);
+                // Connect the nodes
+                sourceNode.connect(invertedGainNode);
                 invertedGainNode.connect(audioContext.destination);
 
-                document.getElementById('status').innerText = "Status: Attempting Phase Cancellation";
-                document.getElementById('startButton').disabled = true;
-                document.getElementById('stopButton').disabled = false;
+                // Update the UI
+                document.getElementById("status").innerText = "Phase inversion active. Sound may be inverted.";
+                document.getElementById("startButton").disabled = true;
+                document.getElementById("stopButton").disabled = false;
+
+                microphoneStream = stream; // Save stream for stopping later
             } catch (error) {
-                console.error("Error accessing microphone:", error);
-                document.getElementById('status').innerText = "Error: Unable to access microphone.";
+                console.error("Microphone access error:", error);
+                document.getElementById("status").innerText = "Error: Unable to access the microphone.";
             }
         }
 
         function stopPhaseCancellation() {
-            if (micStream) micStream.getTracks().forEach(track => track.stop());
-            if (audioContext) audioContext.close();
+            if (microphoneStream) {
+                microphoneStream.getTracks().forEach(track => track.stop());
+            }
+            if (audioContext) {
+                audioContext.close();
+            }
 
-            document.getElementById('status').innerText = "Status: Stopped";
-            document.getElementById('startButton').disabled = false;
-            document.getElementById('stopButton').disabled = true;
+            document.getElementById("status").innerText = "Status: Stopped";
+            document.getElementById("startButton").disabled = false;
+            document.getElementById("stopButton").disabled = true;
         }
 
-        document.getElementById('startButton').addEventListener('click', startPhaseCancellation);
-        document.getElementById('stopButton').addEventListener('click', stopPhaseCancellation);
+        document.getElementById("startButton").addEventListener("click", startPhaseCancellation);
+        document.getElementById("stopButton").addEventListener("click", stopPhaseCancellation);
     </script>
 </body>
 </html>
